@@ -47,6 +47,31 @@ function getS3Client() {
 }
 
 /* =========================================================
+   0. REAL S3 HEALTH CHECK ENDPOINT (GET /api/health)
+========================================================= */
+const handleHealth = async (req, res) => {
+  try {
+    const { s3, bucketName } = getS3Client();
+    await s3.headBucket({ Bucket: bucketName }).promise();
+    res.json({
+      connected: true,
+      bucket: bucketName,
+      status: 'S3 Connection Verified'
+    });
+  } catch (err) {
+    console.error('[S3 HEALTH CHECK FAILED]', err.message);
+    res.status(200).json({
+      connected: false,
+      bucket: getEnv('S3_BUCKET_NAME', 'BUCKET', 'Unspecified'),
+      error: err.message || 'Unable to connect to AWS S3 bucket'
+    });
+  }
+};
+
+app.get('/api/health', handleHealth);
+app.get('/health', handleHealth);
+
+/* =========================================================
    1. UPLOAD FILE TO AMAZON S3 (POST /api/upload & POST /upload)
 ========================================================= */
 const handleUpload = async (req, res) => {

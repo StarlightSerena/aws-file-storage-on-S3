@@ -7,6 +7,40 @@ const BASE_API = '/api';
 let allFiles     = [];     
 let activeFolder = 'all';
 let pendingKey   = null;
+let lastToast    = { msg: '', time: 0 };
+
+/* ═══ DOM INITIALIZATION ═══ */
+document.addEventListener('DOMContentLoaded', () => {
+  checkHealth();
+});
+
+/* ═══ REAL S3 HEALTH CHECK (Phase 5 Fix) ═══ */
+async function checkHealth() {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  
+  if (!dot || !txt) return;
+
+  try {
+    const res = await fetch(BASE_API + '/health');
+    const data = await res.json();
+
+    if (res.ok && data.connected) {
+      dot.style.background = 'var(--green)';
+      txt.textContent = 'Connected · AWS S3';
+    } else {
+      dot.style.background = 'var(--red)';
+      txt.textContent = 'Disconnected · AWS S3';
+      const errMsg = data.error || 'S3 Bucket credentials unverified';
+      toast('S3 Connection Issue: ' + errMsg, 'err');
+    }
+  } catch (err) {
+    if (dot && txt) {
+      dot.style.background = 'var(--red)';
+      txt.textContent = 'Disconnected · AWS S3';
+    }
+  }
+}
 
 /* ═══ PANEL ROUTING ═══ */
 function goPanel(name, el) {
@@ -38,8 +72,15 @@ function fsize(b) {
   return (b/1048576).toFixed(1) + ' MB';
 }
 
-/* ═══ TOAST NOTIFICATIONS ═══ */
+/* ═══ DEDUPLICATED TOAST NOTIFICATIONS (Phase 7 Fix) ═══ */
 function toast(msg, type = 'ok') {
+  const now = Date.now();
+  // Prevent duplicate toast spam within 3 seconds
+  if (lastToast.msg === msg && (now - lastToast.time) < 3000) {
+    return;
+  }
+  lastToast = { msg: msg, time: now };
+
   const icons = {
     ok:  '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
     err: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
@@ -53,7 +94,7 @@ function toast(msg, type = 'ok') {
   setTimeout(() => { el.classList.remove('on'); setTimeout(() => el.remove(), 400); }, 4000);
 }
 
-/* ═══ DRAG & DROP EVENT HANDLERS ═══ */
+/* ═══ DRAG & DROP EVENT HANDLERS (Day 35 Drag & Drop) ═══ */
 function dzOver(e) { e.preventDefault(); document.getElementById('dz').classList.add('over'); }
 function dzLeave()  { document.getElementById('dz').classList.remove('over'); }
 function dzDrop(e)  { e.preventDefault(); dzLeave(); handleFiles(e.dataTransfer.files); }
@@ -121,6 +162,8 @@ function uploadOne(file) {
         pb.className = 'prog-fill done';
         st.textContent = '✓ Uploaded'; st.className = 'ust done';
         toast(file.name + ' uploaded to Amazon S3!', 'ok');
+        // Auto refresh health status & files count
+        checkHealth();
       } else {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || ('HTTP ' + res.status));
@@ -138,7 +181,7 @@ function uploadOne(file) {
     });
 }
 
-/* ═══ LIST FILES WORKFLOW ═══ */
+/* ═══ LIST FILES WORKFLOW (Phase 6 Fix) ═══ */
 async function loadFiles() {
   const box = document.getElementById('fileBox');
   const cnt = document.getElementById('fcount');
@@ -185,11 +228,12 @@ function renderFiles() {
   cnt.textContent = `${allFiles.length} total · ${filtered.length} in view`;
   setBadge(allFiles.length);
 
+  // Handling Empty Buckets (Phase 6 Requirement)
   if (!filtered.length) {
     box.innerHTML = `
       <div class="fstate">
         <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        ${allFiles.length ? 'No files in this folder' : 'Your Amazon S3 bucket is empty'}<br>
+        ${allFiles.length ? 'No files in this folder' : 'No files uploaded yet'}<br>
         <strong>${allFiles.length ? 'Switch to All Files' : 'Upload some files to get started'}</strong>
       </div>`;
     return;
