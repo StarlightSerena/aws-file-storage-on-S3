@@ -213,7 +213,7 @@ const handleDownload = async (req, res) => {
   }
 };
 
-app.get(['/api/download/*filepath', '/api/download/*', '/api/download', '/download/*filepath', '/download/*', '/download'], handleDownload);
+app.get(/^\/(?:api\/)?download\/(.*)/, handleDownload);
 
 /* =========================================================
    4. DELETE FILE FROM AMAZON S3
@@ -242,7 +242,7 @@ const handleDelete = async (req, res) => {
   }
 };
 
-app.delete(['/api/delete/*filepath', '/api/delete/*', '/api/delete', '/delete/*filepath', '/delete/*', '/delete'], handleDelete);
+app.delete(/^\/(?:api\/)?delete\/(.*)/, handleDelete);
 
 // Multer Error Handler
 app.use((err, req, res, next) => {
