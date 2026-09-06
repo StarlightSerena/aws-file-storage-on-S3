@@ -162,8 +162,14 @@ const handleList = async (req, res) => {
 app.get('/api/files', handleList);
 app.get('/files', handleList);
 
-// Helper to reliably extract S3 object key from request URL/params regardless of nested slashes
+// Helper to reliably extract S3 object key from request URL/params regardless of nested slashes or Express 5 array params
 function extractS3Key(req, prefix) {
+  if (Array.isArray(req.params.filepath)) {
+    return req.params.filepath.join('/');
+  }
+  if (Array.isArray(req.params[0])) {
+    return req.params[0].join('/');
+  }
   let key = req.params.filepath || req.params[0] || '';
   if (!key || key.length === 0) {
     const urlPath = (req.path || req.url || '').split('?')[0];
@@ -213,7 +219,7 @@ const handleDownload = async (req, res) => {
   }
 };
 
-app.get(/^\/(?:api\/)?download\/(.*)/, handleDownload);
+app.get(['/api/download/*filepath', '/download/*filepath'], handleDownload);
 
 /* =========================================================
    4. DELETE FILE FROM AMAZON S3
@@ -242,7 +248,7 @@ const handleDelete = async (req, res) => {
   }
 };
 
-app.delete(/^\/(?:api\/)?delete\/(.*)/, handleDelete);
+app.delete(['/api/delete/*filepath', '/delete/*filepath'], handleDelete);
 
 // Multer Error Handler
 app.use((err, req, res, next) => {
