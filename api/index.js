@@ -26,9 +26,6 @@ const upload = multer({
 // Helper to format AWS SDK errors into clear, actionable messages
 function formatAWSError(err, bucketName) {
   if (!err) return 'An unexpected error occurred.';
-  if (bucketName === 'yourname-file-storage') {
-    return `S3_BUCKET_NAME is still set to placeholder 'yourname-file-storage'. Please update S3_BUCKET_NAME in Vercel Environment Variables.`;
-  }
   if (err.code === 'NoSuchBucket' || (err.message && err.message.includes('The specified bucket does not exist'))) {
     return `S3 Bucket "${bucketName}" does not exist. Please update S3_BUCKET_NAME in Vercel Environment Variables.`;
   }
@@ -73,9 +70,6 @@ function getS3Client() {
 const handleHealth = async (req, res) => {
   try {
     const { s3, bucketName } = getS3Client();
-    if (bucketName === 'yourname-file-storage') {
-      throw new Error("S3_BUCKET_NAME is set to placeholder 'yourname-file-storage'");
-    }
     await s3.headBucket({ Bucket: bucketName }).promise();
     res.json({
       connected: true,
