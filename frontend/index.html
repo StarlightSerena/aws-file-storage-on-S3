@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cloud-Based File Storage System — S3 Vault</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══ Header / Top Bar ═══ -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-icon">
+      <svg viewBox="0 0 24 24"><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg>
+    </div>
+    <div class="brand-name">Cloud <span>S3 Storage</span></div>
+  </div>
+  <div class="topbar-meta">
+    <div class="dot-live"></div>
+    AWS SDK Connected · S3 Bucket Active
+  </div>
+</header>
+
+<!-- ═══ Sidebar Navigation ═══ -->
+<nav class="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-label">Navigation</div>
+    <div class="nav-item active" id="nav-upload" onclick="goPanel('upload', this)">
+      <svg viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+      Upload Files
+    </div>
+    <div class="nav-item" id="nav-files" onclick="goPanel('files', this)">
+      <svg viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+      My Files
+      <span class="nav-badge" id="nb">0</span>
+    </div>
+    <div class="nav-item" id="nav-dl" onclick="goPanel('dl', this)">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download
+    </div>
+  </div>
+
+  <div class="sidebar-divider"></div>
+
+  <div class="sidebar-section">
+    <div class="storage-widget">
+      <div class="sw-title">Files Stored in S3</div>
+      <div class="sw-stat" id="swStat">—</div>
+      <div class="sw-sub" id="swSub">Loading stats...</div>
+      <div class="sw-bar"><div class="sw-fill" id="swFill"></div></div>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══ Main Content Area ═══ -->
+<main class="main">
+
+  <!-- ─── Upload Panel ─── -->
+  <div class="panel on" id="p-upload">
+    <div class="ph">
+      <div>
+        <div class="ph-title">Upload Files to Amazon S3</div>
+        <div class="ph-sub">Drag & drop or select files — Auto-categorized in cloud storage</div>
+      </div>
+    </div>
+
+    <div class="dropzone" id="dz"
+         onclick="document.getElementById('fi').click()"
+         ondragover="dzOver(event)" ondragleave="dzLeave()" ondrop="dzDrop(event)">
+      <div class="dz-icon">
+        <svg viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+      </div>
+      <div class="dz-title">Drag & Drop Files Here</div>
+      <div class="dz-sub">Support for JPG, PNG, WEBP, PDF, and Documents</div>
+      <button class="btn-choose" onclick="event.stopPropagation(); document.getElementById('fi').click()">Choose Files</button>
+      <div class="dz-types">
+        <span class="dz-tag">images/ → JPG, PNG, WEBP</span>
+        <span class="dz-tag">pdf/ → PDF Documents</span>
+        <span class="dz-tag">others/ → All Formats</span>
+      </div>
+    </div>
+    <input type="file" id="fi" multiple style="display:none" onchange="handleFiles(this.files)">
+    <div class="uq" id="uq"></div>
+  </div>
+
+  <!-- ─── Files Panel ─── -->
+  <div class="panel" id="p-files">
+    <div class="ph">
+      <div>
+        <div class="ph-title">Stored Cloud Files</div>
+        <div class="ph-sub" id="fcount">Loading files from Amazon S3...</div>
+      </div>
+      <button class="btn-ref" id="refBtn" onclick="loadFiles()">
+        <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Refresh List
+      </button>
+    </div>
+
+    <div class="folder-tabs">
+      <button class="ftab active" onclick="filterFolder('all',this)">All Files</button>
+      <button class="ftab" onclick="filterFolder('images',this)">Images</button>
+      <button class="ftab" onclick="filterFolder('pdf',this)">PDF</button>
+      <button class="ftab" onclick="filterFolder('others',this)">Others</button>
+    </div>
+
+    <div id="fileBox">
+      <div class="fstate">
+        <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Click <strong>Refresh List</strong> to load S3 objects
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Download Panel ─── -->
+  <div class="panel" id="p-dl">
+    <div class="ph">
+      <div>
+        <div class="ph-title">Download File from S3</div>
+        <div class="ph-sub">Enter the file path (e.g., images/photo.jpg) to retrieve</div>
+      </div>
+    </div>
+
+    <div class="dl-card">
+      <div class="dl-card-title">File Path in S3</div>
+      <div class="dl-row">
+        <div class="dl-wrap">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <input class="dl-input" id="dlIn" placeholder="images/sample.jpg  or  pdf/document.pdf">
+        </div>
+        <button class="dl-btn" onclick="doDownload()">Download</button>
+      </div>
+      <div class="dl-hint">
+        Tip: Go to <strong>My Files</strong> to download any file with one click.
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ─── Delete Confirmation Modal ─── -->
+<div class="overlay" id="delOv">
+  <div class="modal">
+    <div class="m-icon">
+      <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+    </div>
+    <div class="m-title">Delete S3 File?</div>
+    <div class="m-msg">
+      This will permanently remove<br>
+      <span class="m-file" id="mFile"></span><br>
+      from your Amazon S3 bucket.
+    </div>
+    <div class="m-btns">
+      <button class="btn-cancel" onclick="closeDelOv()">Cancel</button>
+      <button class="btn-del-ok" onclick="doDelete()">Delete Object</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Notifications Zone ─── -->
+<div class="toast-zone" id="tz"></div>
+
+<script src="script.js"></script>
+</body>
+</html>

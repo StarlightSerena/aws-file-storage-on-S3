@@ -1,0 +1,195 @@
+require('dotenv').config();
+const express = require('express');
+const AWS     = require('aws-sdk');
+const multer  = require('multer');
+const cors    = require('cors');
+const path    = require('path');
+
+const app = express();
+
+// Enable CORS & JSON Parsing
+app.use(cors());
+app.use(express.json());
+
+// Support Vercel standard environment variable names & local fallbacks
+const accessKeyId     = process.env.AWS_ACCESS_KEY_ID     || process.env.ACCESS_KEY;
+const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || process.env.SECRET_KEY;
+const region          = process.env.AWS_REGION            || process.env.REGION;
+const bucketName      = process.env.S3_BUCKET_NAME        || process.env.BUCKET;
+
+// AWS SDK Configuration (Server-side execution only)
+if (accessKeyId && secretAccessKey) {
+  AWS.config.update({
+    accessKeyId:     accessKeyId,
+    secretAccessKey: secretAccessKey,
+    region:          region || 'ap-south-1'
+  });
+}
+
+const s3 = new AWS.S3();
+
+// File Validation & Multer Configuration (Memory Storage for Serverless)
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB Limit
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_FILE_SIZE },
+  fileFilter: (req, file, cb) => {
+    if (!file.originalname) {
+      return cb(new Error('Invalid file payload'), false);
+    }
+    cb(null, true);
+  }
+});
+
+/* =========================================================
+   1. UPLOAD FILE TO AMAZON S3 (POST /api/upload & POST /upload)
+========================================================= */
+const handleUpload = async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: 'No file selected for upload' });
+    }
+
+    let folder = 'others';
+    if (file.mimetype.startsWith('image/'))       folder = 'images';
+    else if (file.mimetype === 'application/pdf') folder = 'pdf';
+
+    const s3Key = `${folder}/${file.originalname}`;
+
+    await s3.upload({
+      Bucket:      bucketName,
+      Key:         s3Key,
+      Body:        file.buffer,
+      ContentType: file.mimetype
+    }).promise();
+
+    console.log(`[S3 UPLOAD SUCCESS] Key: ${s3Key} | Size: ${file.size} bytes`);
+    res.json({
+      message: 'Upload Successful',
+      key: s3Key,
+      filename: file.originalname,
+      size: file.size,
+      folder: folder
+    });
+
+  } catch (err) {
+    console.error('[S3 UPLOAD ERROR]', err.message);
+    res.status(500).json({ error: 'Upload failed: ' + (err.message || 'Server error') });
+  }
+};
+
+app.post('/api/upload', upload.single('file'), handleUpload);
+app.post('/upload', upload.single('file'), handleUpload);
+
+/* =========================================================
+   2. LIST STORED FILES FROM AMAZON S3 (GET /api/files & GET /files)
+========================================================= */
+const handleList = async (req, res) => {
+  try {
+    const data  = await s3.listObjectsV2({ Bucket: bucketName }).promise();
+    const files = (data.Contents || []).map(f => ({
+      key: f.Key,
+      size: f.Size,
+      lastModified: f.LastModified
+    }));
+
+    console.log(`[S3 LIST SUCCESS] ${files.length} object(s) fetched`);
+    res.json(files);
+  } catch (err) {
+    console.error('[S3 LIST ERROR]', err.message);
+    res.status(500).json({ error: 'Failed to retrieve files from S3' });
+  }
+};
+
+app.get('/api/files', handleList);
+app.get('/files', handleList);
+
+/* =========================================================
+   3. DOWNLOAD FILE FROM AMAZON S3 (Express 5 Wildcard: *filepath)
+========================================================= */
+const handleDownload = async (req, res) => {
+  try {
+    const rawParam = req.params.filepath || '';
+    const key      = decodeURIComponent(rawParam);
+    const filename = key.split('/').pop();
+
+    if (!key) {
+      return res.status(400).json({ error: 'Filepath is required' });
+    }
+
+    const data = await s3.getObject({
+      Bucket: bucketName,
+      Key:    key
+    }).promise();
+
+    res.setHeader('Content-Type', data.ContentType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(data.Body);
+
+    console.log(`[S3 DOWNLOAD SUCCESS] ${key}`);
+  } catch (err) {
+    console.error('[S3 DOWNLOAD ERROR]', err.message);
+    if (err.code === 'NoSuchKey') {
+      return res.status(404).json({ error: 'File not found in S3 storage' });
+    }
+    res.status(500).json({ error: 'Download failed. Please check the file path.' });
+  }
+};
+
+app.get('/api/download/*filepath', handleDownload);
+app.get('/download/*filepath', handleDownload);
+
+/* =========================================================
+   4. DELETE FILE FROM AMAZON S3 (Express 5 Wildcard: *filepath)
+========================================================= */
+const handleDelete = async (req, res) => {
+  try {
+    const rawParam = req.params.filepath || '';
+    const key      = decodeURIComponent(rawParam);
+
+    if (!key) {
+      return res.status(400).json({ error: 'Filepath is required' });
+    }
+
+    await s3.deleteObject({
+      Bucket: bucketName,
+      Key:    key
+    }).promise();
+
+    console.log(`[S3 DELETE SUCCESS] ${key}`);
+    res.json({ message: 'File deleted from S3 successfully' });
+  } catch (err) {
+    console.error('[S3 DELETE ERROR]', err.message);
+    res.status(500).json({ error: 'Delete failed. Unable to remove object from S3.' });
+  }
+};
+
+app.delete('/api/delete/*filepath', handleDelete);
+app.delete('/delete/*filepath', handleDelete);
+
+// Multer Error Handling
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'File size exceeds maximum allowed limit (50MB).' });
+    }
+    return res.status(400).json({ error: 'File upload error: ' + err.message });
+  }
+  if (err) {
+    return res.status(500).json({ error: err.message || 'An unexpected error occurred.' });
+  }
+  next();
+});
+
+// Local Development Server Listener
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  const PORT = process.env.PORT || 3000;
+  app.use(express.static(path.join(__dirname, '../frontend')));
+  app.listen(PORT, () => {
+    console.log(`\n  🚀 S3 Vault Local Server running on http://localhost:${PORT}\n`);
+  });
+}
+
+// Export Express app for Vercel Serverless Function Execution
+module.exports = app;

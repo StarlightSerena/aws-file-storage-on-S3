@@ -1,0 +1,17 @@
+{
+  "name": "cloud-file-storage-vercel",
+  "version": "1.0.0",
+  "description": "Cloud-Based File Storage System (Amazon S3 + AWS SDK + Vercel Deployment)",
+  "main": "api/index.js",
+  "scripts": {
+    "start": "node api/index.js",
+    "dev": "node api/index.js"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1693.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "multer": "^2.1.1"
+  }
+}
