@@ -23,6 +23,27 @@ const upload = multer({
   limits: { fileSize: MAX_FILE_SIZE }
 });
 
+// Helper to format AWS SDK errors into clear, actionable messages
+function formatAWSError(err, bucketName) {
+  if (!err) return 'An unexpected error occurred.';
+  if (bucketName === 'yourname-file-storage') {
+    return `S3_BUCKET_NAME is still set to placeholder 'yourname-file-storage'. Please update S3_BUCKET_NAME in Vercel Environment Variables.`;
+  }
+  if (err.code === 'NoSuchBucket' || (err.message && err.message.includes('The specified bucket does not exist'))) {
+    return `S3 Bucket "${bucketName}" does not exist. Please update S3_BUCKET_NAME in Vercel Environment Variables.`;
+  }
+  if (err.code === 'AccessDenied') {
+    return `Access Denied for bucket "${bucketName}". Check IAM user permissions in AWS Console.`;
+  }
+  if (err.code === 'InvalidAccessKeyId') {
+    return `Invalid AWS Access Key ID. Please verify AWS_ACCESS_KEY_ID in Vercel Environment Variables.`;
+  }
+  if (err.code === 'SignatureDoesNotMatch') {
+    return `AWS Secret Key mismatch. Please verify AWS_SECRET_ACCESS_KEY in Vercel Environment Variables.`;
+  }
+  return err.message || 'AWS S3 Error';
+}
+
 // Helper to create S3 instance per request/invocation
 function getS3Client() {
   const accessKeyId     = getEnv('AWS_ACCESS_KEY_ID', 'ACCESS_KEY');
@@ -52,6 +73,9 @@ function getS3Client() {
 const handleHealth = async (req, res) => {
   try {
     const { s3, bucketName } = getS3Client();
+    if (bucketName === 'yourname-file-storage') {
+      throw new Error("S3_BUCKET_NAME is set to placeholder 'yourname-file-storage'");
+    }
     await s3.headBucket({ Bucket: bucketName }).promise();
     res.json({
       connected: true,
@@ -59,11 +83,13 @@ const handleHealth = async (req, res) => {
       status: 'S3 Connection Verified'
     });
   } catch (err) {
+    const bucketName = getEnv('S3_BUCKET_NAME', 'BUCKET', 'Unspecified');
+    const formattedMsg = formatAWSError(err, bucketName);
     console.error('[S3 HEALTH CHECK FAILED]', err.message);
     res.status(200).json({
       connected: false,
-      bucket: getEnv('S3_BUCKET_NAME', 'BUCKET', 'Unspecified'),
-      error: err.message || 'Unable to connect to AWS S3 bucket'
+      bucket: bucketName,
+      error: formattedMsg
     });
   }
 };
@@ -106,8 +132,10 @@ const handleUpload = async (req, res) => {
     });
 
   } catch (err) {
+    const bucketName = getEnv('S3_BUCKET_NAME', 'BUCKET', 'Unspecified');
+    const formattedMsg = formatAWSError(err, bucketName);
     console.error('[S3 UPLOAD ERROR]', err.message);
-    res.status(500).json({ error: err.message || 'Upload failed' });
+    res.status(500).json({ error: formattedMsg });
   }
 };
 
@@ -130,8 +158,10 @@ const handleList = async (req, res) => {
     console.log(`[S3 LIST SUCCESS] ${files.length} object(s) fetched`);
     res.json(files);
   } catch (err) {
+    const bucketName = getEnv('S3_BUCKET_NAME', 'BUCKET', 'Unspecified');
+    const formattedMsg = formatAWSError(err, bucketName);
     console.error('[S3 LIST ERROR]', err.message);
-    res.status(500).json({ error: err.message || 'Failed to retrieve files from S3' });
+    res.status(500).json({ error: formattedMsg });
   }
 };
 
@@ -163,11 +193,13 @@ const handleDownload = async (req, res) => {
 
     console.log(`[S3 DOWNLOAD SUCCESS] ${key}`);
   } catch (err) {
+    const bucketName = getEnv('S3_BUCKET_NAME', 'BUCKET', 'Unspecified');
     console.error('[S3 DOWNLOAD ERROR]', err.message);
     if (err.code === 'NoSuchKey') {
       return res.status(404).json({ error: 'File not found in S3 storage' });
     }
-    res.status(500).json({ error: err.message || 'Download failed' });
+    const formattedMsg = formatAWSError(err, bucketName);
+    res.status(500).json({ error: formattedMsg });
   }
 };
 
@@ -195,8 +227,10 @@ const handleDelete = async (req, res) => {
     console.log(`[S3 DELETE SUCCESS] ${key}`);
     res.json({ message: 'File deleted from S3 successfully' });
   } catch (err) {
+    const bucketName = getEnv('S3_BUCKET_NAME', 'BUCKET', 'Unspecified');
+    const formattedMsg = formatAWSError(err, bucketName);
     console.error('[S3 DELETE ERROR]', err.message);
-    res.status(500).json({ error: err.message || 'Delete failed' });
+    res.status(500).json({ error: formattedMsg });
   }
 };
 

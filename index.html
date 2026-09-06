@@ -3,458 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>S3 Vault — Cloud File Storage</title>
+  <title>Cloud-Based File Storage System — S3 Vault</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-  <style>
-    /* ─── Tokens ─────────────────────────────────── */
-    :root {
-      --ink:       #0a0a0f;
-      --ink2:      #3a3a4a;
-      --ink3:      #7a7a90;
-      --paper:     #f5f4f0;
-      --paper2:    #eceae4;
-      --paper3:    #e0ddd6;
-      --gold:      #c9a84c;
-      --gold-lt:   #f5edda;
-      --gold-dk:   #8a6b28;
-      --red:       #c93a3a;
-      --red-lt:    #faeaea;
-      --green:     #2e7d52;
-      --green-lt:  #e4f2eb;
-      --blue:      #2a4db5;
-      --blue-lt:   #e6ebf8;
-      --line:      rgba(0,0,0,.1);
-      --r:         6px;
-      --r-lg:      14px;
-      --mono:      'DM Mono', monospace;
-      --sans:      'Syne', sans-serif;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: var(--sans);
-      background: var(--paper);
-      color: var(--ink);
-      min-height: 100vh;
-      display: grid;
-      grid-template-columns: 280px 1fr;
-      grid-template-rows: auto 1fr;
-    }
-
-    /* ─── Top bar ───────────────────────────────── */
-    .topbar {
-      grid-column: 1/-1;
-      background: var(--ink);
-      color: var(--paper);
-      padding: 0 32px;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 2px solid var(--gold);
-    }
-
-    .brand {
-      display: flex; align-items: center; gap: 12px;
-    }
-    .brand-icon {
-      width: 30px; height: 30px;
-      border: 1.5px solid var(--gold);
-      border-radius: 4px;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .brand-icon svg { width: 16px; height: 16px; fill: none; stroke: var(--gold); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-    .brand-name { font-size: 17px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--paper); }
-    .brand-name span { color: var(--gold); }
-
-    .topbar-meta { font-family: var(--mono); font-size: 11px; color: var(--ink3); display: flex; align-items: center; gap: 6px; }
-    .dot-live { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
-
-    /* ─── Sidebar ───────────────────────────────── */
-    .sidebar {
-      background: var(--ink);
-      color: var(--paper);
-      padding: 28px 0;
-      display: flex; flex-direction: column;
-      border-right: 1px solid rgba(255,255,255,.07);
-      position: sticky; top: 0; height: calc(100vh - 56px);
-      overflow-y: auto;
-    }
-
-    .sidebar-section { padding: 0 20px 24px; }
-    .sidebar-label {
-      font-family: var(--mono); font-size: 9px; font-weight: 500;
-      letter-spacing: 2px; text-transform: uppercase;
-      color: var(--ink3); padding: 0 12px; margin-bottom: 8px;
-    }
-
-    .nav-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 12px; border-radius: var(--r);
-      font-size: 13px; font-weight: 600; letter-spacing: .3px;
-      color: rgba(255,255,255,.5); cursor: pointer;
-      transition: all .18s; margin-bottom: 2px;
-      border: 1px solid transparent;
-    }
-    .nav-item svg { width: 16px; height: 16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex-shrink: 0; }
-    .nav-item:hover  { color: var(--paper); background: rgba(255,255,255,.06); }
-    .nav-item.active { color: var(--gold); background: rgba(201,168,76,.1); border-color: rgba(201,168,76,.2); }
-    .nav-badge {
-      margin-left: auto; background: var(--gold); color: var(--ink);
-      font-family: var(--mono); font-size: 10px; font-weight: 500;
-      padding: 2px 7px; border-radius: 20px; min-width: 22px; text-align: center;
-      display: none;
-    }
-    .nav-badge.on { display: block; }
-
-    .sidebar-divider { height: 1px; background: rgba(255,255,255,.07); margin: 0 20px 20px; }
-
-    .storage-widget {
-      margin: 0 20px;
-      background: rgba(255,255,255,.05);
-      border: 1px solid rgba(255,255,255,.08);
-      border-radius: var(--r-lg);
-      padding: 16px;
-    }
-    .sw-title { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,.4); margin-bottom: 12px; }
-    .sw-stat  { font-size: 22px; font-weight: 800; color: var(--paper); margin-bottom: 4px; }
-    .sw-sub   { font-family: var(--mono); font-size: 10px; color: var(--ink3); }
-    .sw-bar   { height: 3px; background: rgba(255,255,255,.1); border-radius: 2px; margin-top: 12px; overflow: hidden; }
-    .sw-fill  { height: 100%; background: var(--gold); border-radius: 2px; width: 0%; transition: width .5s ease; }
-
-    /* ─── Main ──────────────────────────────────── */
-    .main {
-      padding: 32px;
-      overflow-y: auto;
-      background:
-        radial-gradient(ellipse at 80% 10%, rgba(201,168,76,.06) 0%, transparent 55%),
-        var(--paper);
-    }
-
-    /* panels */
-    .panel { display: none; animation: fadein .3s ease; }
-    .panel.on { display: block; }
-    @keyframes fadein { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:translateY(0);} }
-
-    /* panel header */
-    .ph {
-      display: flex; align-items: flex-end; justify-content: space-between;
-      margin-bottom: 28px; padding-bottom: 20px;
-      border-bottom: 1px solid var(--line);
-    }
-    .ph-title { font-size: 28px; font-weight: 800; letter-spacing: -1px; color: var(--ink); }
-    .ph-sub   { font-family: var(--mono); font-size: 11px; color: var(--ink3); margin-top: 4px; }
-
-    /* ─── Upload Panel ──────────────────────────── */
-    .dropzone {
-      border: 2px dashed var(--paper3);
-      border-radius: var(--r-lg);
-      padding: 64px 32px;
-      text-align: center;
-      cursor: pointer;
-      transition: all .22s;
-      background: var(--paper2);
-      position: relative;
-      overflow: hidden;
-    }
-    .dropzone::before {
-      content: '';
-      position: absolute; inset: 0;
-      background: linear-gradient(135deg, rgba(201,168,76,.06), transparent);
-      opacity: 0; transition: opacity .25s;
-    }
-    .dropzone:hover::before, .dropzone.over::before { opacity: 1; }
-    .dropzone:hover, .dropzone.over {
-      border-color: var(--gold);
-      background: var(--gold-lt);
-    }
-    .dropzone.over { transform: scale(1.01); }
-
-    .dz-icon {
-      width: 64px; height: 64px; border-radius: 14px;
-      border: 1.5px solid var(--paper3);
-      background: var(--paper);
-      display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 20px;
-      transition: all .22s;
-      box-shadow: 0 4px 14px rgba(0,0,0,.07);
-    }
-    .dropzone:hover .dz-icon, .dropzone.over .dz-icon {
-      border-color: var(--gold); background: var(--gold-lt);
-      box-shadow: 0 4px 24px rgba(201,168,76,.22);
-    }
-    .dz-icon svg { width: 28px; height: 28px; fill:none; stroke:var(--ink2); stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; transition: stroke .22s; }
-    .dropzone:hover .dz-icon svg, .dropzone.over .dz-icon svg { stroke: var(--gold-dk); }
-
-    .dz-title { font-size: 18px; font-weight: 800; color: var(--ink); margin-bottom: 6px; }
-    .dz-sub   { font-size: 13px; color: var(--ink3); margin-bottom: 24px; font-weight: 400; }
-
-    .btn-choose {
-      padding: 11px 28px; border-radius: var(--r);
-      background: var(--ink); color: var(--paper);
-      border: none; font-family: var(--sans);
-      font-size: 13px; font-weight: 700; letter-spacing: .5px;
-      cursor: pointer; transition: all .18s;
-      position: relative; z-index: 1;
-    }
-    .btn-choose:hover { background: var(--gold-dk); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.2); }
-
-    .dz-types {
-      display: flex; gap: 6px; justify-content: center; margin-top: 18px;
-      flex-wrap: wrap;
-    }
-    .dz-tag {
-      font-family: var(--mono); font-size: 10px; font-weight: 500;
-      padding: 3px 9px; border-radius: 20px;
-      background: var(--paper3); color: var(--ink3); border: 1px solid var(--line);
-    }
-
-    /* upload queue */
-    .uq { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; }
-
-    .urow {
-      background: var(--paper);
-      border: 1px solid var(--line);
-      border-radius: var(--r-lg);
-      padding: 14px 16px;
-      display: flex; align-items: center; gap: 12px;
-      animation: fadein .25s ease;
-      box-shadow: 0 1px 4px rgba(0,0,0,.04);
-    }
-
-    .ftype-chip {
-      width: 40px; height: 40px; border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      font-family: var(--mono); font-size: 9px; font-weight: 500;
-      letter-spacing: .5px; flex-shrink: 0;
-      text-transform: uppercase;
-    }
-    .ftype-img   { background: var(--blue-lt);  color: var(--blue); }
-    .ftype-pdf   { background: var(--red-lt);   color: var(--red); }
-    .ftype-other { background: var(--paper2);   color: var(--ink3); border: 1px solid var(--line); }
-
-    .umeta { flex: 1; min-width: 0; }
-    .uname { font-size: 13px; font-weight: 700; color: var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .usize { font-family: var(--mono); font-size: 11px; color: var(--ink3); margin-top: 2px; }
-
-    .ust   { font-family: var(--mono); font-size: 11px; font-weight: 500; flex-shrink: 0; }
-    .ust.uploading { color: var(--blue); }
-    .ust.done      { color: var(--green); }
-    .ust.err       { color: var(--red); }
-
-    .uspin {
-      width: 14px; height: 14px; border-radius: 50%;
-      border: 2px solid var(--paper3); border-top-color: var(--blue);
-      animation: spin .7s linear infinite; flex-shrink: 0;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .prog-track { height: 2px; background: var(--paper2); border-radius: 1px; margin-top: 10px; overflow: hidden; }
-    .prog-fill  { height: 100%; border-radius: 1px; width: 0%; transition: width .35s ease; background: var(--blue); }
-    .prog-fill.done { background: var(--green); }
-    .prog-fill.err  { background: var(--red); }
-
-    /* ─── Files Panel ───────────────────────────── */
-    .folder-tabs {
-      display: flex; gap: 4px; margin-bottom: 18px;
-      border-bottom: 1px solid var(--line); padding-bottom: 0;
-    }
-    .ftab {
-      padding: 8px 16px; border: none; background: transparent;
-      font-family: var(--sans); font-size: 12px; font-weight: 700;
-      color: var(--ink3); cursor: pointer; border-bottom: 2px solid transparent;
-      margin-bottom: -1px; transition: all .18s; letter-spacing: .3px;
-    }
-    .ftab:hover { color: var(--ink2); }
-    .ftab.active { color: var(--ink); border-bottom-color: var(--gold); }
-
-    .file-grid { display: flex; flex-direction: column; gap: 6px; }
-
-    .frow {
-      background: var(--paper);
-      border: 1px solid var(--line);
-      border-radius: var(--r-lg);
-      padding: 14px 16px;
-      display: flex; align-items: center; gap: 12px;
-      transition: all .18s; cursor: default;
-      animation: fadein .25s ease;
-      box-shadow: 0 1px 3px rgba(0,0,0,.04);
-    }
-    .frow:hover { border-color: var(--paper3); box-shadow: 0 4px 14px rgba(0,0,0,.07); transform: translateY(-1px); }
-
-    .frow-meta { flex: 1; min-width: 0; }
-    .frow-name { font-size: 13px; font-weight: 700; color: var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .frow-path { font-family: var(--mono); font-size: 10px; color: var(--ink3); margin-top: 3px; }
-
-    .frow-acts { display: flex; gap: 6px; flex-shrink: 0; }
-    .fact {
-      padding: 7px 13px; border-radius: var(--r);
-      border: 1px solid var(--line); background: var(--paper2);
-      font-family: var(--sans); font-size: 11px; font-weight: 700;
-      cursor: pointer; transition: all .15s; display: flex; align-items: center; gap: 5px;
-      letter-spacing: .2px;
-    }
-    .fact svg { width: 12px; height: 12px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-    .fact:hover { transform: scale(1.04); }
-    .fact:active { transform: scale(.96); }
-    .fact.dl  { color: var(--blue); border-color: rgba(42,77,181,.2); }
-    .fact.dl:hover  { background: var(--blue-lt); }
-    .fact.del { color: var(--red);  border-color: rgba(201,58,58,.2); }
-    .fact.del:hover { background: var(--red-lt); }
-
-    /* empty / loading */
-    .fstate {
-      padding: 60px 24px; text-align: center;
-      color: var(--ink3); font-size: 13px; line-height: 1.9;
-    }
-    .fstate svg { width: 44px; height: 44px; stroke: var(--paper3); fill: none; stroke-width: 1.3; stroke-linecap:round; stroke-linejoin:round; display: block; margin: 0 auto 16px; }
-    .fstate strong { color: var(--ink2); }
-
-    .fload { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 60px; color: var(--ink3); font-size: 13px; }
-
-    .btn-ref {
-      display: flex; align-items: center; gap: 6px;
-      padding: 9px 18px; border-radius: var(--r);
-      background: var(--ink); color: var(--paper);
-      border: none; font-family: var(--sans);
-      font-size: 12px; font-weight: 700; cursor: pointer;
-      transition: all .18s; letter-spacing: .5px;
-    }
-    .btn-ref:hover { background: var(--gold-dk); }
-    .btn-ref:active { transform: scale(.97); }
-    .btn-ref svg { width: 13px; height: 13px; fill:none; stroke:#fff; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
-    .btn-ref.spin svg { animation: spin .7s linear infinite; }
-
-    /* ─── Download Panel ────────────────────────── */
-    .dl-card {
-      background: var(--paper);
-      border: 1px solid var(--line);
-      border-radius: var(--r-lg);
-      padding: 28px;
-      box-shadow: 0 1px 4px rgba(0,0,0,.04);
-    }
-    .dl-card-title { font-size: 13px; font-weight: 700; color: var(--ink2); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1px; }
-    .dl-row { display: flex; gap: 8px; }
-    .dl-wrap { flex: 1; position: relative; }
-    .dl-wrap svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; fill:none; stroke:var(--ink3); stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; pointer-events: none; }
-    .dl-input {
-      width: 100%; padding: 12px 12px 12px 36px;
-      border-radius: var(--r); border: 1px solid var(--paper3);
-      background: var(--paper2); color: var(--ink);
-      font-family: var(--mono); font-size: 13px; outline: none;
-      transition: border-color .18s, box-shadow .18s;
-    }
-    .dl-input:focus { border-color: var(--gold); background: var(--paper); box-shadow: 0 0 0 3px rgba(201,168,76,.12); }
-    .dl-btn {
-      padding: 12px 24px; border-radius: var(--r);
-      background: var(--gold-dk); color: #fff;
-      border: none; font-family: var(--sans);
-      font-size: 13px; font-weight: 700; cursor: pointer;
-      transition: all .18s; white-space: nowrap; letter-spacing: .5px;
-      box-shadow: 0 2px 8px rgba(138,107,40,.3);
-    }
-    .dl-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
-    .dl-btn:active { transform: scale(.97); }
-    .dl-hint { font-family: var(--mono); font-size: 11px; color: var(--ink3); margin-top: 10px; }
-
-    /* ─── Confirm Modal ─────────────────────────── */
-    .overlay {
-      position: fixed; inset: 0; z-index: 1000;
-      background: rgba(10,10,15,.6); backdrop-filter: blur(8px);
-      display: flex; align-items: center; justify-content: center;
-      opacity: 0; pointer-events: none; transition: opacity .25s;
-    }
-    .overlay.on { opacity: 1; pointer-events: all; }
-
-    .modal {
-      background: var(--paper); border-radius: var(--r-lg);
-      width: 100%; max-width: 380px; margin: 16px; padding: 32px;
-      box-shadow: 0 24px 64px rgba(0,0,0,.25);
-      transform: scale(.92) translateY(14px);
-      transition: transform .28s cubic-bezier(.16,1,.3,1);
-      border: 1px solid var(--line);
-    }
-    .overlay.on .modal { transform: scale(1) translateY(0); }
-
-    .m-icon {
-      width: 52px; height: 52px; border-radius: 10px;
-      background: var(--red-lt); border: 1px solid rgba(201,58,58,.15);
-      margin: 0 auto 20px;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .m-icon svg { width: 24px; height: 24px; fill:none; stroke:var(--red); stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-    .m-title { font-size: 18px; font-weight: 800; color: var(--ink); text-align: center; margin-bottom: 8px; letter-spacing: -.3px; }
-    .m-msg   { font-size: 13px; color: var(--ink2); text-align: center; margin-bottom: 24px; line-height: 1.7; }
-    .m-file  { font-family: var(--mono); font-weight: 500; color: var(--ink); background: var(--paper2); padding: 2px 7px; border-radius: 4px; word-break: break-all; }
-    .m-btns  { display: flex; gap: 8px; }
-    .btn-cancel {
-      flex: 1; padding: 11px; border-radius: var(--r);
-      border: 1px solid var(--paper3); background: var(--paper2);
-      font-family: var(--sans); font-size: 13px; font-weight: 700;
-      color: var(--ink2); cursor: pointer; transition: all .18s;
-    }
-    .btn-cancel:hover { background: var(--paper3); }
-    .btn-del-ok {
-      flex: 1; padding: 11px; border-radius: var(--r);
-      border: none; background: var(--red); color: #fff;
-      font-family: var(--sans); font-size: 13px; font-weight: 700;
-      cursor: pointer; transition: all .18s;
-      box-shadow: 0 3px 10px rgba(201,58,58,.3);
-    }
-    .btn-del-ok:hover { filter: brightness(1.08); }
-    .btn-del-ok:active { transform: scale(.97); }
-
-    /* ─── Toasts ────────────────────────────────── */
-    .toast-zone {
-      position: fixed; bottom: 24px; right: 24px;
-      display: flex; flex-direction: column-reverse; gap: 8px; z-index: 2000;
-    }
-    .toast {
-      padding: 12px 18px; border-radius: var(--r-lg);
-      font-family: var(--sans); font-size: 13px; font-weight: 600;
-      display: flex; align-items: center; gap: 10px;
-      box-shadow: 0 8px 28px rgba(0,0,0,.18); max-width: 340px;
-      transform: translateX(calc(100% + 40px));
-      transition: transform .38s cubic-bezier(.16,1,.3,1);
-      border: 1px solid transparent;
-    }
-    .toast.on { transform: translateX(0); }
-    .toast svg { width: 15px; height: 15px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
-    .toast.ok  { background: var(--ink); color: #6ee7b7; border-color: rgba(110,231,183,.15); }
-    .toast.err { background: #2d0a0a; color: #fca5a5; border-color: rgba(252,165,165,.15); }
-    .toast.inf { background: var(--ink); color: #93c5fd; border-color: rgba(147,197,253,.15); }
-
-    /* ─── Responsive ─────────────────────────────── */
-    @media (max-width: 700px) {
-      body { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; }
-      .sidebar { height: auto; flex-direction: row; flex-wrap: wrap; padding: 12px; position: static; gap: 4px; border-right: none; border-bottom: 1px solid rgba(255,255,255,.07); }
-      .sidebar-section { padding: 0; }
-      .sidebar-label, .storage-widget, .sidebar-divider { display: none; }
-      .nav-item { padding: 8px 12px; font-size: 12px; }
-      .main { padding: 20px; }
-    }
-  </style>
+  <link rel="stylesheet" href="frontend/style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- ═══ Top Bar ═══ -->
+<!-- ═══ Header / Top Bar ═══ -->
 <header class="topbar">
   <div class="brand">
     <div class="brand-icon">
       <svg viewBox="0 0 24 24"><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg>
     </div>
-    <div class="brand-name">S3<span>Vault</span></div>
+    <div class="brand-name">Cloud <span>S3 Storage</span></div>
   </div>
-  <div class="topbar-meta">
-    <div class="dot-live"></div>
-    Connected · AWS S3
+  <div class="topbar-meta" id="topbarMeta">
+    <div class="dot-live" id="statusDot"></div>
+    <span id="statusText">Checking AWS S3 connection...</span>
   </div>
 </header>
 
-<!-- ═══ Sidebar ═══ -->
+<!-- ═══ Sidebar Navigation ═══ -->
 <nav class="sidebar">
   <div class="sidebar-section">
     <div class="sidebar-label">Navigation</div>
@@ -477,23 +48,23 @@
 
   <div class="sidebar-section">
     <div class="storage-widget">
-      <div class="sw-title">Files Uploaded</div>
+      <div class="sw-title">Files Stored in S3</div>
       <div class="sw-stat" id="swStat">—</div>
-      <div class="sw-sub" id="swSub">No files yet</div>
+      <div class="sw-sub" id="swSub">Loading stats...</div>
       <div class="sw-bar"><div class="sw-fill" id="swFill"></div></div>
     </div>
   </div>
 </nav>
 
-<!-- ═══ Main ═══ -->
+<!-- ═══ Main Content Area ═══ -->
 <main class="main">
 
   <!-- ─── Upload Panel ─── -->
   <div class="panel on" id="p-upload">
     <div class="ph">
       <div>
-        <div class="ph-title">Upload Files</div>
-        <div class="ph-sub">Drag & drop or choose files — auto-sorted by type</div>
+        <div class="ph-title">Upload Files to Amazon S3</div>
+        <div class="ph-sub">Drag & drop or select files — Auto-categorized in cloud storage</div>
       </div>
     </div>
 
@@ -503,13 +74,13 @@
       <div class="dz-icon">
         <svg viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
       </div>
-      <div class="dz-title">Drop files to upload</div>
-      <div class="dz-sub">Files are automatically sorted into folders by type</div>
+      <div class="dz-title">Drag & Drop Files Here</div>
+      <div class="dz-sub">Support for JPG, PNG, WEBP, PDF, and Documents</div>
       <button class="btn-choose" onclick="event.stopPropagation(); document.getElementById('fi').click()">Choose Files</button>
       <div class="dz-types">
-        <span class="dz-tag">images/ → JPG, PNG, GIF</span>
-        <span class="dz-tag">pdf/ → PDF</span>
-        <span class="dz-tag">others/ → everything else</span>
+        <span class="dz-tag">images/ → JPG, PNG, WEBP</span>
+        <span class="dz-tag">pdf/ → PDF Documents</span>
+        <span class="dz-tag">others/ → All Formats</span>
       </div>
     </div>
     <input type="file" id="fi" multiple style="display:none" onchange="handleFiles(this.files)">
@@ -520,12 +91,12 @@
   <div class="panel" id="p-files">
     <div class="ph">
       <div>
-        <div class="ph-title">My Files</div>
-        <div class="ph-sub" id="fcount">Loading files…</div>
+        <div class="ph-title">Stored Cloud Files</div>
+        <div class="ph-sub" id="fcount">Loading files from Amazon S3...</div>
       </div>
       <button class="btn-ref" id="refBtn" onclick="loadFiles()">
         <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-        Refresh
+        Refresh List
       </button>
     </div>
 
@@ -539,7 +110,7 @@
     <div id="fileBox">
       <div class="fstate">
         <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        Click <strong>Refresh</strong> to load your files
+        Click <strong>Refresh List</strong> to load S3 objects
       </div>
     </div>
   </div>
@@ -548,342 +119,50 @@
   <div class="panel" id="p-dl">
     <div class="ph">
       <div>
-        <div class="ph-title">Download File</div>
-        <div class="ph-sub">Enter the full file path including folder prefix</div>
+        <div class="ph-title">Download File from S3</div>
+        <div class="ph-sub">Enter the file path (e.g., images/photo.jpg) to retrieve</div>
       </div>
     </div>
 
     <div class="dl-card">
-      <div class="dl-card-title">File Path</div>
+      <div class="dl-card-title">File Path in S3</div>
       <div class="dl-row">
         <div class="dl-wrap">
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <input class="dl-input" id="dlIn" placeholder="images/photo.jpg  or  pdf/report.pdf">
+          <input class="dl-input" id="dlIn" placeholder="images/sample.jpg  or  pdf/document.pdf">
         </div>
         <button class="dl-btn" onclick="doDownload()">Download</button>
       </div>
       <div class="dl-hint">
-        Tip: Go to <strong>My Files</strong>, then click the download button on any file to get it instantly.
+        Tip: Go to <strong>My Files</strong> to download any file with one click.
       </div>
     </div>
   </div>
 
 </main>
 
-<!-- ─── Delete Confirm ─── -->
+<!-- ─── Delete Confirmation Modal ─── -->
 <div class="overlay" id="delOv">
   <div class="modal">
     <div class="m-icon">
       <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
     </div>
-    <div class="m-title">Delete File?</div>
+    <div class="m-title">Delete S3 File?</div>
     <div class="m-msg">
       This will permanently remove<br>
       <span class="m-file" id="mFile"></span><br>
-      from your S3 bucket.
+      from your Amazon S3 bucket.
     </div>
     <div class="m-btns">
       <button class="btn-cancel" onclick="closeDelOv()">Cancel</button>
-      <button class="btn-del-ok" onclick="doDelete()">Delete</button>
+      <button class="btn-del-ok" onclick="doDelete()">Delete Object</button>
     </div>
   </div>
 </div>
 
-<!-- ─── Toasts ─── -->
+<!-- ─── Notifications Zone ─── -->
 <div class="toast-zone" id="tz"></div>
 
-<script>
-'use strict';
-
-/* ═══ CONFIG ═══ */
-const BASE = window.location.origin.startsWith('http') ? window.location.origin : 'http://localhost:3000';
-
-/* ═══ STATE ═══ */
-let allFiles    = [];     // full list from server (array of strings, e.g. "images/foo.jpg")
-let activeFolder = 'all';
-let pendingKey   = null;
-
-/* ═══ PANELS ═══ */
-function goPanel(name, el) {
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('p-' + name).classList.add('on');
-  el.classList.add('active');
-  if (name === 'files') loadFiles();
-}
-
-/* ═══ HELPERS ═══ */
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function ext(key)  { return (key.split('.').pop() || '').toLowerCase(); }
-function fname(key){ return key.split('/').pop(); }
-
-function chipType(key) {
-  const e = ext(key);
-  if (['jpg','jpeg','png','gif','webp','svg','bmp','ico'].includes(e)) return ['img', 'IMG'];
-  if (e === 'pdf') return ['pdf', 'PDF'];
-  return ['other', ext(key).toUpperCase().slice(0,4) || 'FILE'];
-}
-
-function fsize(b) {
-  if (!b && b !== 0) return '';
-  if (b < 1024)       return b + ' B';
-  if (b < 1048576)    return (b/1024).toFixed(1) + ' KB';
-  return (b/1048576).toFixed(1) + ' MB';
-}
-
-/* ═══ TOAST ═══ */
-function toast(msg, type = 'ok') {
-  const icons = {
-    ok:  '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
-    err: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
-    inf: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
-  };
-  const el = document.createElement('div');
-  el.className = 'toast ' + type;
-  el.innerHTML = (icons[type] || '') + esc(msg);
-  document.getElementById('tz').appendChild(el);
-  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('on')));
-  setTimeout(() => { el.classList.remove('on'); setTimeout(() => el.remove(), 400); }, 4000);
-}
-
-/* ═══ DRAG & DROP ═══ */
-function dzOver(e) { e.preventDefault(); document.getElementById('dz').classList.add('over'); }
-function dzLeave()  { document.getElementById('dz').classList.remove('over'); }
-function dzDrop(e)  { e.preventDefault(); dzLeave(); handleFiles(e.dataTransfer.files); }
-
-/* ═══ UPLOAD — matches POST /upload on your server ═══ */
-function handleFiles(files) {
-  if (!files || !files.length) return;
-  Array.from(files).forEach(uploadOne);
-  document.getElementById('fi').value = '';
-}
-
-function uploadOne(file) {
-  const id   = 'u' + Date.now() + Math.random().toString(36).slice(2,5);
-  const [ct, label] = chipType(file.name);
-
-  const row = document.createElement('div');
-  row.className = 'urow'; row.id = id;
-  row.innerHTML = `
-    <div class="ftype-chip ftype-${ct}">${label}</div>
-    <div class="umeta">
-      <div class="uname">${esc(file.name)}</div>
-      <div class="usize">${fsize(file.size)}</div>
-    </div>
-    <div class="uspin" id="sp-${id}"></div>
-    <span class="ust uploading" id="st-${id}">Uploading…</span>
-    <div style="width:100%;grid-column:1/-1;display:none" id="pb-wrap-${id}">
-      <div class="prog-track"><div class="prog-fill" id="pb-${id}"></div></div>
-    </div>`;
-  document.getElementById('uq').prepend(row);
-
-  // Show progress bar
-  const pbWrap = document.getElementById('pb-wrap-' + id);
-  pbWrap.style.display = 'block';
-  row.style.flexWrap = 'wrap';
-
-  let pct = 0;
-  const tick = setInterval(() => {
-    pct += Math.random() * 16 + 4;
-    if (pct >= 90) { clearInterval(tick); pct = 90; }
-    document.getElementById('pb-' + id).style.width = pct + '%';
-  }, 170);
-
-  const fd = new FormData();
-  fd.append('file', file);
-
-  fetch(BASE + '/upload', { method: 'POST', body: fd })
-    .then(async res => {
-      clearInterval(tick);
-      const sp = document.getElementById('sp-' + id);
-      const st = document.getElementById('st-' + id);
-      const pb = document.getElementById('pb-' + id);
-      pb.style.width = '100%';
-      if (sp) sp.style.display = 'none';
-
-      if (res.ok) {
-        pb.className = 'prog-fill done';
-        st.textContent = '✓ Uploaded'; st.className = 'ust done';
-        toast(file.name + ' uploaded!', 'ok');
-      } else {
-        throw new Error('HTTP ' + res.status);
-      }
-    })
-    .catch(err => {
-      clearInterval(tick);
-      const sp = document.getElementById('sp-' + id);
-      const st = document.getElementById('st-' + id);
-      const pb = document.getElementById('pb-' + id);
-      pb.style.width = '100%'; pb.className = 'prog-fill err';
-      if (sp) sp.style.display = 'none';
-      st.textContent = '✗ Failed'; st.className = 'ust err';
-      toast('Upload failed: ' + err.message, 'err');
-    });
-}
-
-/* ═══ LIST FILES — matches GET /files which returns string[] ═══ */
-async function loadFiles() {
-  const box = document.getElementById('fileBox');
-  const cnt = document.getElementById('fcount');
-  const btn = document.getElementById('refBtn');
-
-  box.innerHTML = `<div class="fload"><div class="uspin"></div>Loading from S3…</div>`;
-  btn.classList.add('spin');
-  cnt.textContent = 'Loading…';
-
-  try {
-    const res = await fetch(BASE + '/files');
-    if (!res.ok) throw new Error('Server returned ' + res.status);
-
-    // Your server returns a plain string array: ["images/foo.jpg", "pdf/doc.pdf", ...]
-    const data = await res.json();
-    allFiles = Array.isArray(data) ? data : (data.files || []);
-
-    btn.classList.remove('spin');
-    updateSidebar(allFiles.length);
-    renderFiles();
-
-  } catch (err) {
-    btn.classList.remove('spin');
-    cnt.textContent = 'Error loading files';
-    box.innerHTML = `
-      <div class="fstate">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        Could not load files —<br><strong>${esc(err.message)}</strong>
-      </div>`;
-    toast('Failed to load: ' + err.message, 'err');
-  }
-}
-
-function renderFiles() {
-  const box = document.getElementById('fileBox');
-  const cnt = document.getElementById('fcount');
-
-  const filtered = activeFolder === 'all'
-    ? allFiles
-    : allFiles.filter(k => k.startsWith(activeFolder + '/'));
-
-  cnt.textContent = `${allFiles.length} total · ${filtered.length} in view`;
-  setBadge(allFiles.length);
-
-  if (!filtered.length) {
-    box.innerHTML = `
-      <div class="fstate">
-        <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        ${allFiles.length ? 'No files in this folder' : 'Your S3 bucket is empty'}<br>
-        <strong>${allFiles.length ? 'Switch to All Files' : 'Upload some files to get started'}</strong>
-      </div>`;
-    return;
-  }
-
-  const grid = document.createElement('div');
-  grid.className = 'file-grid';
-
-  filtered.forEach(key => {
-    const [ct, label] = chipType(key);
-    const name = fname(key);
-    const row = document.createElement('div');
-    row.className = 'frow'; row.id = 'row-' + btoa(key).replace(/[^a-z0-9]/gi,'');
-    row.innerHTML = `
-      <div class="ftype-chip ftype-${ct}">${label}</div>
-      <div class="frow-meta">
-        <div class="frow-name" title="${esc(name)}">${esc(name)}</div>
-        <div class="frow-path">${esc(key)}</div>
-      </div>
-      <div class="frow-acts">
-        <button class="fact dl" onclick="window.open('${BASE}/download/${esc(key)}')">
-          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Download
-        </button>
-        <button class="fact del" onclick="openDelOv('${esc(key)}')">
-          <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-          Delete
-        </button>
-      </div>`;
-    grid.appendChild(row);
-  });
-
-  box.innerHTML = '';
-  box.appendChild(grid);
-}
-
-function filterFolder(folder, btn) {
-  activeFolder = folder;
-  document.querySelectorAll('.ftab').forEach(t => t.classList.remove('active'));
-  btn.classList.add('active');
-  if (allFiles.length) renderFiles();
-}
-
-function setBadge(n) {
-  const b = document.getElementById('nb');
-  b.textContent = n;
-  b.classList.toggle('on', n > 0);
-}
-
-function updateSidebar(n) {
-  setBadge(n);
-  document.getElementById('swStat').textContent = n;
-  document.getElementById('swSub').textContent = n === 1 ? '1 file stored' : `${n} files stored`;
-  document.getElementById('swFill').style.width = Math.min(n * 5, 100) + '%';
-}
-
-/* ═══ DELETE — matches DELETE /delete/:name ═══ */
-function openDelOv(key) {
-  pendingKey = key;
-  document.getElementById('mFile').textContent = key;
-  document.getElementById('delOv').classList.add('on');
-}
-function closeDelOv() {
-  pendingKey = null;
-  document.getElementById('delOv').classList.remove('on');
-}
-
-async function doDelete() {
-  if (!pendingKey) return;
-  const key = pendingKey;
-  closeDelOv();
-
-  try {
-    // Your server uses /delete/:name — the key may include slashes (images/foo.jpg)
-    // We send it as-is; Express reads req.params.name
-    const res = await fetch(`${BASE}/delete/${key}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-
-    // Remove from local state
-    allFiles = allFiles.filter(k => k !== key);
-    updateSidebar(allFiles.length);
-
-    // Animate row out
-    const rowId = 'row-' + btoa(key).replace(/[^a-z0-9]/gi,'');
-    const row = document.getElementById(rowId);
-    if (row) {
-      row.style.transition = 'opacity .28s, transform .28s';
-      row.style.opacity = '0'; row.style.transform = 'translateX(18px)';
-      setTimeout(() => renderFiles(), 300);
-    } else {
-      renderFiles();
-    }
-
-    toast(fname(key) + ' deleted', 'ok');
-  } catch (err) {
-    toast('Delete failed: ' + err.message, 'err');
-  }
-}
-
-/* ═══ DOWNLOAD — matches GET /download/:name ═══ */
-function doDownload() {
-  const name = document.getElementById('dlIn').value.trim();
-  if (!name) { toast('Please enter a file path', 'inf'); return; }
-  window.open(`${BASE}/download/${name}`);
-}
-
-/* ═══ CLOSE ON BACKDROP / ESC ═══ */
-document.getElementById('delOv').addEventListener('click', e => {
-  if (e.target === document.getElementById('delOv')) closeDelOv();
-});
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDelOv(); });
-</script>
+<script src="frontend/script.js"></script>
 </body>
 </html>
