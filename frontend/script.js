@@ -1,6 +1,6 @@
 'use strict';
 
-/* ═══ CONFIG (Relative API Paths for Vercel Deployment - Zero Secrets Exposed) ═══ */
+/* ═══ CONFIG (Relative API Paths for Vercel Deployment) ═══ */
 const BASE_API = '/api';
 
 /* ═══ STATE MANAGEMENT ═══ */
@@ -150,7 +150,10 @@ async function loadFiles() {
 
   try {
     const res = await fetch(BASE_API + '/files');
-    if (!res.ok) throw new Error('Server returned ' + res.status);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || ('Server returned ' + res.status));
+    }
 
     const data = await res.json();
     allFiles = Array.isArray(data) ? data.map(item => typeof item === 'string' ? item : item.key) : [];
@@ -261,7 +264,10 @@ async function doDelete() {
 
   try {
     const res = await fetch(`${BASE_API}/delete/${key}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || ('HTTP ' + res.status));
+    }
 
     allFiles = allFiles.filter(k => k !== key);
     updateSidebar(allFiles.length);

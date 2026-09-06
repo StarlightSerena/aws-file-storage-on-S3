@@ -11,35 +11,40 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Support Vercel standard environment variable names & local fallbacks
-const accessKeyId     = process.env.AWS_ACCESS_KEY_ID     || process.env.ACCESS_KEY;
-const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || process.env.SECRET_KEY;
-const region          = process.env.AWS_REGION            || process.env.REGION;
-const bucketName      = process.env.S3_BUCKET_NAME        || process.env.BUCKET;
-
-// AWS SDK Configuration (Server-side execution only)
-if (accessKeyId && secretAccessKey) {
-  AWS.config.update({
-    accessKeyId:     accessKeyId,
-    secretAccessKey: secretAccessKey,
-    region:          region || 'ap-south-1'
-  });
+// Helper function to resolve environment variables
+function getEnv(key1, key2, fallback = '') {
+  return process.env[key1] || process.env[key2] || fallback;
 }
 
-const s3 = new AWS.S3();
-
-// File Validation & Multer Configuration (Memory Storage for Serverless)
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB Limit
+// Multer Configuration (50MB Limit)
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_FILE_SIZE },
-  fileFilter: (req, file, cb) => {
-    if (!file.originalname) {
-      return cb(new Error('Invalid file payload'), false);
-    }
-    cb(null, true);
-  }
+  limits: { fileSize: MAX_FILE_SIZE }
 });
+
+// Helper to create S3 instance per request/invocation
+function getS3Client() {
+  const accessKeyId     = getEnv('AWS_ACCESS_KEY_ID', 'ACCESS_KEY');
+  const secretAccessKey = getEnv('AWS_SECRET_ACCESS_KEY', 'SECRET_KEY');
+  const region          = getEnv('AWS_REGION', 'REGION', 'ap-south-1');
+  const bucketName      = getEnv('S3_BUCKET_NAME', 'BUCKET');
+
+  if (!accessKeyId || !secretAccessKey) {
+    throw new Error('AWS credentials missing. Please set AWS_ACCESS_KEY_ID & AWS_SECRET_ACCESS_KEY in Vercel environment variables.');
+  }
+  if (!bucketName) {
+    throw new Error('S3 Bucket name missing. Please set S3_BUCKET_NAME in Vercel environment variables.');
+  }
+
+  const s3 = new AWS.S3({
+    accessKeyId,
+    secretAccessKey,
+    region
+  });
+
+  return { s3, bucketName };
+}
 
 /* =========================================================
    1. UPLOAD FILE TO AMAZON S3 (POST /api/upload & POST /upload)
@@ -50,6 +55,8 @@ const handleUpload = async (req, res) => {
     if (!file) {
       return res.status(400).json({ error: 'No file selected for upload' });
     }
+
+    const { s3, bucketName } = getS3Client();
 
     let folder = 'others';
     if (file.mimetype.startsWith('image/'))       folder = 'images';
@@ -75,7 +82,7 @@ const handleUpload = async (req, res) => {
 
   } catch (err) {
     console.error('[S3 UPLOAD ERROR]', err.message);
-    res.status(500).json({ error: 'Upload failed: ' + (err.message || 'Server error') });
+    res.status(500).json({ error: err.message || 'Upload failed' });
   }
 };
 
@@ -87,6 +94,7 @@ app.post('/upload', upload.single('file'), handleUpload);
 ========================================================= */
 const handleList = async (req, res) => {
   try {
+    const { s3, bucketName } = getS3Client();
     const data  = await s3.listObjectsV2({ Bucket: bucketName }).promise();
     const files = (data.Contents || []).map(f => ({
       key: f.Key,
@@ -98,7 +106,7 @@ const handleList = async (req, res) => {
     res.json(files);
   } catch (err) {
     console.error('[S3 LIST ERROR]', err.message);
-    res.status(500).json({ error: 'Failed to retrieve files from S3' });
+    res.status(500).json({ error: err.message || 'Failed to retrieve files from S3' });
   }
 };
 
@@ -106,7 +114,7 @@ app.get('/api/files', handleList);
 app.get('/files', handleList);
 
 /* =========================================================
-   3. DOWNLOAD FILE FROM AMAZON S3 (Express 5 Wildcard: *filepath)
+   3. DOWNLOAD FILE FROM AMAZON S3
 ========================================================= */
 const handleDownload = async (req, res) => {
   try {
@@ -118,6 +126,7 @@ const handleDownload = async (req, res) => {
       return res.status(400).json({ error: 'Filepath is required' });
     }
 
+    const { s3, bucketName } = getS3Client();
     const data = await s3.getObject({
       Bucket: bucketName,
       Key:    key
@@ -133,7 +142,7 @@ const handleDownload = async (req, res) => {
     if (err.code === 'NoSuchKey') {
       return res.status(404).json({ error: 'File not found in S3 storage' });
     }
-    res.status(500).json({ error: 'Download failed. Please check the file path.' });
+    res.status(500).json({ error: err.message || 'Download failed' });
   }
 };
 
@@ -141,7 +150,7 @@ app.get('/api/download/*filepath', handleDownload);
 app.get('/download/*filepath', handleDownload);
 
 /* =========================================================
-   4. DELETE FILE FROM AMAZON S3 (Express 5 Wildcard: *filepath)
+   4. DELETE FILE FROM AMAZON S3
 ========================================================= */
 const handleDelete = async (req, res) => {
   try {
@@ -152,6 +161,7 @@ const handleDelete = async (req, res) => {
       return res.status(400).json({ error: 'Filepath is required' });
     }
 
+    const { s3, bucketName } = getS3Client();
     await s3.deleteObject({
       Bucket: bucketName,
       Key:    key
@@ -161,14 +171,14 @@ const handleDelete = async (req, res) => {
     res.json({ message: 'File deleted from S3 successfully' });
   } catch (err) {
     console.error('[S3 DELETE ERROR]', err.message);
-    res.status(500).json({ error: 'Delete failed. Unable to remove object from S3.' });
+    res.status(500).json({ error: err.message || 'Delete failed' });
   }
 };
 
 app.delete('/api/delete/*filepath', handleDelete);
 app.delete('/delete/*filepath', handleDelete);
 
-// Multer Error Handling
+// Multer Error Handler
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
@@ -187,7 +197,7 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
   const PORT = process.env.PORT || 3000;
   app.use(express.static(path.join(__dirname, '../frontend')));
   app.listen(PORT, () => {
-    console.log(`\n  🚀 S3 Vault Local Server running on http://localhost:${PORT}\n`);
+    console.log(`🚀 S3 Vault Local Server running on http://localhost:${PORT}`);
   });
 }
 
