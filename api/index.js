@@ -164,16 +164,18 @@ app.get('/files', handleList);
 
 // Helper to reliably extract S3 object key from request URL/params regardless of nested slashes
 function extractS3Key(req, prefix) {
-  let raw = req.params.filepath || req.params[0] || '';
-  if (!raw || raw.length === 0) {
-    const targetUrl = req.path || req.url || '';
-    const regex = new RegExp('^/api/' + prefix + '/|^/' + prefix + '/');
-    raw = targetUrl.split('?')[0].replace(regex, '');
+  let key = req.params.filepath || req.params[0] || '';
+  if (!key || key.length === 0) {
+    const urlPath = (req.path || req.url || '').split('?')[0];
+    const match = urlPath.match(new RegExp('(?:/api)?/' + prefix + '/(.*)'));
+    if (match && match[1]) {
+      key = match[1];
+    }
   }
   try {
-    return decodeURIComponent(raw);
+    return decodeURIComponent(key);
   } catch (e) {
-    return raw;
+    return key;
   }
 }
 
@@ -211,10 +213,7 @@ const handleDownload = async (req, res) => {
   }
 };
 
-app.get('/api/download/*filepath', handleDownload);
-app.get('/api/download/*', handleDownload);
-app.get('/download/*filepath', handleDownload);
-app.get('/download/*', handleDownload);
+app.get(['/api/download/*filepath', '/api/download/*', '/api/download', '/download/*filepath', '/download/*', '/download'], handleDownload);
 
 /* =========================================================
    4. DELETE FILE FROM AMAZON S3
@@ -243,10 +242,7 @@ const handleDelete = async (req, res) => {
   }
 };
 
-app.delete('/api/delete/*filepath', handleDelete);
-app.delete('/api/delete/*', handleDelete);
-app.delete('/download/*filepath', handleDelete);
-app.delete('/delete/*', handleDelete);
+app.delete(['/api/delete/*filepath', '/api/delete/*', '/api/delete', '/delete/*filepath', '/delete/*', '/delete'], handleDelete);
 
 // Multer Error Handler
 app.use((err, req, res, next) => {
