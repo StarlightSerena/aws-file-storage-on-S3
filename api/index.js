@@ -162,14 +162,28 @@ const handleList = async (req, res) => {
 app.get('/api/files', handleList);
 app.get('/files', handleList);
 
+// Helper to reliably extract S3 object key from request URL/params regardless of nested slashes
+function extractS3Key(req, prefix) {
+  let raw = req.params.filepath || req.params[0] || '';
+  if (!raw || raw.length === 0) {
+    const targetUrl = req.path || req.url || '';
+    const regex = new RegExp('^/api/' + prefix + '/|^/' + prefix + '/');
+    raw = targetUrl.split('?')[0].replace(regex, '');
+  }
+  try {
+    return decodeURIComponent(raw);
+  } catch (e) {
+    return raw;
+  }
+}
+
 /* =========================================================
    3. DOWNLOAD FILE FROM AMAZON S3
 ========================================================= */
 const handleDownload = async (req, res) => {
   try {
-    const rawParam = req.params.filepath || '';
-    const key      = decodeURIComponent(rawParam);
-    const filename = key.split('/').pop();
+    const key = extractS3Key(req, 'download');
+    const filename = key.split('/').pop() || 'download';
 
     if (!key) {
       return res.status(400).json({ error: 'Filepath is required' });
@@ -198,15 +212,16 @@ const handleDownload = async (req, res) => {
 };
 
 app.get('/api/download/*filepath', handleDownload);
+app.get('/api/download/*', handleDownload);
 app.get('/download/*filepath', handleDownload);
+app.get('/download/*', handleDownload);
 
 /* =========================================================
    4. DELETE FILE FROM AMAZON S3
 ========================================================= */
 const handleDelete = async (req, res) => {
   try {
-    const rawParam = req.params.filepath || '';
-    const key      = decodeURIComponent(rawParam);
+    const key = extractS3Key(req, 'delete');
 
     if (!key) {
       return res.status(400).json({ error: 'Filepath is required' });
@@ -229,7 +244,9 @@ const handleDelete = async (req, res) => {
 };
 
 app.delete('/api/delete/*filepath', handleDelete);
-app.delete('/delete/*filepath', handleDelete);
+app.delete('/api/delete/*', handleDelete);
+app.delete('/download/*filepath', handleDelete);
+app.delete('/delete/*', handleDelete);
 
 // Multer Error Handler
 app.use((err, req, res, next) => {
