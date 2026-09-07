@@ -193,10 +193,17 @@ function extractS3Key(req, prefix) {
 ========================================================= */
 const handleDownload = async (req, res) => {
   try {
-    const key = extractS3Key(req, 'download');
+    const reqKey = req.query.key || req.query.file || req.query.filepath;
+    let key = '';
+
+    if (reqKey && typeof reqKey === 'string' && reqKey.trim() !== '') {
+      key = reqKey.trim().replace(/^\/+/, '');
+    } else {
+      key = extractS3Key(req, 'download');
+    }
     
     if (!key || key.trim() === '') {
-      return res.status(400).json({ error: 'Filepath is required. Please specify a file path (e.g. /api/download/images/sample.jpg)' });
+      return res.status(400).json({ error: 'Filepath is required. Please specify a file path (e.g. /api/download?key=images/sample.jpg)' });
     }
 
     const filename = key.split('/').pop() || 'download';
@@ -206,11 +213,14 @@ const handleDownload = async (req, res) => {
       Key:    key
     }).promise();
 
-    res.setHeader('Content-Type', data.ContentType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    const contentType = data.ContentType || 'application/octet-stream';
+    const safeFilename = encodeURIComponent(filename).replace(/['()]/g, escape).replace(/\*/g, '%2A');
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename.replace(/"/g, '')}"; filename*=UTF-8''${safeFilename}`);
     res.send(data.Body);
 
-    console.log(`[S3 DOWNLOAD SUCCESS] ${key}`);
+    console.log(`[S3 DOWNLOAD SUCCESS] Key: "${key}" | Size: ${data.ContentLength || 0} bytes`);
   } catch (err) {
     const bucketName = getEnv('S3_BUCKET_NAME', 'BUCKET', 'Unspecified');
     console.error('[S3 DOWNLOAD ERROR]', err.message);
@@ -229,7 +239,14 @@ app.get(['/api/download', '/api/download/', '/download', '/download/', '/api/dow
 ========================================================= */
 const handleDelete = async (req, res) => {
   try {
-    const key = extractS3Key(req, 'delete');
+    const reqKey = req.query.key || req.query.file || req.query.filepath;
+    let key = '';
+
+    if (reqKey && typeof reqKey === 'string' && reqKey.trim() !== '') {
+      key = reqKey.trim().replace(/^\/+/, '');
+    } else {
+      key = extractS3Key(req, 'delete');
+    }
 
     if (!key || key.trim() === '') {
       return res.status(400).json({ error: 'Filepath is required' });
@@ -241,8 +258,8 @@ const handleDelete = async (req, res) => {
       Key:    key
     }).promise();
 
-    console.log(`[S3 DELETE SUCCESS] ${key}`);
-    res.json({ message: 'File deleted from S3 successfully' });
+    console.log(`[S3 DELETE SUCCESS] Key: "${key}"`);
+    res.json({ message: 'File deleted from S3 successfully', key: key });
   } catch (err) {
     const bucketName = getEnv('S3_BUCKET_NAME', 'BUCKET', 'Unspecified');
     const formattedMsg = formatAWSError(err, bucketName);

@@ -245,8 +245,10 @@ function renderFiles() {
   filtered.forEach(key => {
     const [ct, label] = chipType(key);
     const name = fname(key);
+    const safeRowId = 'row-' + btoa(encodeURIComponent(key)).replace(/[^a-z0-9]/gi, '');
     const row = document.createElement('div');
-    row.className = 'frow'; row.id = 'row-' + btoa(key).replace(/[^a-z0-9]/gi,'');
+    row.className = 'frow';
+    row.id = safeRowId;
     row.innerHTML = `
       <div class="ftype-chip ftype-${ct}">${label}</div>
       <div class="frow-meta">
@@ -254,15 +256,22 @@ function renderFiles() {
         <div class="frow-path">${esc(key)}</div>
       </div>
       <div class="frow-acts">
-        <button class="fact dl" onclick="window.open('${BASE_API}/download/${esc(key)}')">
+        <button class="fact dl">
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Download
         </button>
-        <button class="fact del" onclick="openDelOv('${esc(key)}')">
+        <button class="fact del">
           <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
           Delete
         </button>
       </div>`;
+
+    const dlBtn = row.querySelector('.fact.dl');
+    if (dlBtn) dlBtn.onclick = () => downloadFileByKey(key);
+
+    const delBtn = row.querySelector('.fact.del');
+    if (delBtn) delBtn.onclick = () => openDelOv(key);
+
     grid.appendChild(row);
   });
 
@@ -292,6 +301,7 @@ function updateSidebar(n) {
 
 /* ═══ DELETE OBJECT WORKFLOW ═══ */
 function openDelOv(key) {
+  if (!key) return;
   pendingKey = key;
   document.getElementById('mFile').textContent = key;
   document.getElementById('delOv').classList.add('on');
@@ -307,7 +317,7 @@ async function doDelete() {
   closeDelOv();
 
   try {
-    const res = await fetch(`${BASE_API}/delete/${key}`, { method: 'DELETE' });
+    const res = await fetch(`${BASE_API}/delete?key=${encodeURIComponent(key)}`, { method: 'DELETE' });
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       throw new Error(errData.error || ('HTTP ' + res.status));
@@ -316,8 +326,8 @@ async function doDelete() {
     allFiles = allFiles.filter(k => k !== key);
     updateSidebar(allFiles.length);
 
-    const rowId = 'row-' + btoa(key).replace(/[^a-z0-9]/gi,'');
-    const row = document.getElementById(rowId);
+    const safeRowId = 'row-' + btoa(encodeURIComponent(key)).replace(/[^a-z0-9]/gi, '');
+    const row = document.getElementById(safeRowId);
     if (row) {
       row.style.transition = 'opacity .28s, transform .28s';
       row.style.opacity = '0'; row.style.transform = 'translateX(18px)';
@@ -333,11 +343,24 @@ async function doDelete() {
 }
 
 /* ═══ DOWNLOAD OBJECT WORKFLOW ═══ */
+function downloadFileByKey(key) {
+  if (!key || typeof key !== 'string' || !key.trim()) {
+    toast('Unable to download file: file path is missing.', 'err');
+    return;
+  }
+  const cleanKey = key.trim().replace(/^\/+/, '');
+  const url = `${BASE_API}/download?key=${encodeURIComponent(cleanKey)}`;
+  window.open(url, '_blank');
+}
+
 function doDownload() {
   const input = document.getElementById('dlIn');
   const name = (input ? input.value : '').trim().replace(/^\/+/, '');
-  if (!name) { toast('Please enter a valid file path (e.g. images/photo.jpg)', 'inf'); return; }
-  window.open(`${BASE_API}/download/${encodeURIComponent(name).replace(/%2F/gi, '/')}`);
+  if (!name) {
+    toast('Please enter a valid file path (e.g. images/photo.jpg)', 'inf');
+    return;
+  }
+  downloadFileByKey(name);
 }
 
 /* ═══ EVENT BINDINGS ═══ */
