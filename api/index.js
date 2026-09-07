@@ -164,24 +164,27 @@ app.get('/files', handleList);
 
 // Helper to reliably extract S3 object key from request URL/params regardless of nested slashes or Express 5 array params
 function extractS3Key(req, prefix) {
+  let key = '';
   if (Array.isArray(req.params.filepath)) {
-    return req.params.filepath.join('/');
+    key = req.params.filepath.join('/');
+  } else if (Array.isArray(req.params[0])) {
+    key = req.params[0].join('/');
+  } else {
+    key = req.params.filepath || req.params[0] || '';
   }
-  if (Array.isArray(req.params[0])) {
-    return req.params[0].join('/');
-  }
-  let key = req.params.filepath || req.params[0] || '';
+
   if (!key || key.length === 0) {
     const urlPath = (req.path || req.url || '').split('?')[0];
-    const match = urlPath.match(new RegExp('(?:/api)?/' + prefix + '/(.*)'));
+    const match = urlPath.match(new RegExp('(?:/api)?/' + prefix + '/?(.*)'));
     if (match && match[1]) {
       key = match[1];
     }
   }
+
   try {
-    return decodeURIComponent(key);
+    return decodeURIComponent(key).replace(/^\/+/, '');
   } catch (e) {
-    return key;
+    return key.replace(/^\/+/, '');
   }
 }
 
@@ -191,12 +194,12 @@ function extractS3Key(req, prefix) {
 const handleDownload = async (req, res) => {
   try {
     const key = extractS3Key(req, 'download');
-    const filename = key.split('/').pop() || 'download';
-
-    if (!key) {
-      return res.status(400).json({ error: 'Filepath is required' });
+    
+    if (!key || key.trim() === '') {
+      return res.status(400).json({ error: 'Filepath is required. Please specify a file path (e.g. /api/download/images/sample.jpg)' });
     }
 
+    const filename = key.split('/').pop() || 'download';
     const { s3, bucketName } = getS3Client();
     const data = await s3.getObject({
       Bucket: bucketName,
@@ -219,7 +222,7 @@ const handleDownload = async (req, res) => {
   }
 };
 
-app.get(['/api/download/*filepath', '/download/*filepath'], handleDownload);
+app.get(['/api/download', '/api/download/', '/download', '/download/', '/api/download/*filepath', '/download/*filepath'], handleDownload);
 
 /* =========================================================
    4. DELETE FILE FROM AMAZON S3
@@ -228,7 +231,7 @@ const handleDelete = async (req, res) => {
   try {
     const key = extractS3Key(req, 'delete');
 
-    if (!key) {
+    if (!key || key.trim() === '') {
       return res.status(400).json({ error: 'Filepath is required' });
     }
 
@@ -248,7 +251,7 @@ const handleDelete = async (req, res) => {
   }
 };
 
-app.delete(['/api/delete/*filepath', '/delete/*filepath'], handleDelete);
+app.delete(['/api/delete', '/api/delete/', '/delete', '/delete/', '/api/delete/*filepath', '/delete/*filepath'], handleDelete);
 
 // Multer Error Handler
 app.use((err, req, res, next) => {

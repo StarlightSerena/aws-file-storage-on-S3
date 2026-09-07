@@ -334,9 +334,10 @@ async function doDelete() {
 
 /* ═══ DOWNLOAD OBJECT WORKFLOW ═══ */
 function doDownload() {
-  const name = document.getElementById('dlIn').value.trim();
-  if (!name) { toast('Please enter a valid file path', 'inf'); return; }
-  window.open(`${BASE_API}/download/${name}`);
+  const input = document.getElementById('dlIn');
+  const name = (input ? input.value : '').trim().replace(/^\/+/, '');
+  if (!name) { toast('Please enter a valid file path (e.g. images/photo.jpg)', 'inf'); return; }
+  window.open(`${BASE_API}/download/${encodeURIComponent(name).replace(/%2F/gi, '/')}`);
 }
 
 /* ═══ EVENT BINDINGS ═══ */

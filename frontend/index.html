@@ -128,7 +128,7 @@
       <div class="dl-row">
         <div class="dl-wrap">
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <input class="dl-input" id="dlIn" placeholder="images/sample.jpg  or  pdf/document.pdf">
+          <input class="dl-input" id="dlIn" placeholder="images/sample.jpg  or  pdf/document.pdf" onkeydown="if(event.key==='Enter') doDownload()">
         </div>
         <button class="dl-btn" onclick="doDownload()">Download</button>
       </div>
